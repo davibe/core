@@ -6,13 +6,7 @@ from typing import TYPE_CHECKING, Any, override
 from xknx.devices import Device as XknxDevice
 from xknx.telegram.address import DeviceGroupAddress, GroupAddress
 
-from homeassistant.const import (
-    CONF_DEVICE,
-    CONF_ENTITY_CATEGORY,
-    CONF_ID,
-    CONF_NAME,
-    EntityCategory,
-)
+from homeassistant.const import CONF_DEVICE, CONF_ENTITY_CATEGORY, CONF_ID, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -230,7 +224,6 @@ class KnxUiEntity(_KnxEntityBase):
 
         self._attr_name = entity_config[CONF_NAME]
         self._attr_unique_id = unique_id
-        if entity_category := entity_config.get(CONF_ENTITY_CATEGORY):
-            self._attr_entity_category = EntityCategory(entity_category)
-        if device_info := entity_config.get(CONF_DEVICE_INFO):
+        self._attr_entity_category = entity_config[CONF_ENTITY_CATEGORY]
+        if device_info := entity_config[CONF_DEVICE_INFO]:
             self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, device_info)})
