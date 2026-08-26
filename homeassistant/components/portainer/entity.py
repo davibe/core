@@ -6,7 +6,11 @@ from yarl import URL
 
 from homeassistant.const import CONF_URL
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.device_registry import (
+    ChildDeviceInfo,
+    DeviceEntryType,
+    DeviceInfo,
+)
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -113,16 +117,9 @@ class PortainerContainerEntity(PortainerCoordinatorEntity):
             ),
             model="Container",
             name=self.device_name,
-            # If the container belongs to a stack, nest it under the stack
-            # else it's the endpoint
             via_device_id=dr.async_get_device_id_by_identifier(
                 coordinator.hass,
-                (
-                    DOMAIN,
-                    f"{coordinator.config_entry.entry_id}_{self.endpoint_id}_stack_{device_info.stack.id}"
-                    if device_info.stack
-                    else f"{coordinator.config_entry.entry_id}_{self.endpoint_id}",
-                ),
+                (DOMAIN, f"{coordinator.config_entry.entry_id}_{self.endpoint_id}"),
                 config_entry_id=coordinator.config_entry.entry_id,
             ),
             translation_key=None if self.device_name else "unknown_container",
@@ -168,20 +165,15 @@ class PortainerStackEntity(PortainerCoordinatorEntity):
         self.endpoint_id = via_device.endpoint.id
         self.endpoint_name = via_device.endpoint.name
 
-        self._attr_device_info = DeviceInfo(
+        self._attr_device_info = ChildDeviceInfo(
             identifiers={
                 (
                     DOMAIN,
                     f"{coordinator.config_entry.entry_id}_{self.endpoint_id}_stack_{self.stack_id}",
                 )
             },
-            manufacturer=DEFAULT_NAME,
-            configuration_url=URL(
-                f"{coordinator.config_entry.data[CONF_URL]}#!/{self.endpoint_id}/docker/stacks/{self.device_name}"
-            ),
-            model="Stack",
             name=self.device_name,
-            via_device_id=dr.async_get_device_id_by_identifier(
+            parent_device_id=dr.async_get_device_id_by_identifier(
                 coordinator.hass,
                 (DOMAIN, f"{coordinator.config_entry.entry_id}_{self.endpoint_id}"),
                 config_entry_id=coordinator.config_entry.entry_id,
@@ -273,20 +265,15 @@ class PortainerVolumeEntity(PortainerCoordinatorEntity):
         self.endpoint_id = via_device.endpoint.id
         self.endpoint_name = via_device.endpoint.name
 
-        self._attr_device_info = DeviceInfo(
+        self._attr_device_info = ChildDeviceInfo(
             identifiers={
                 (
                     DOMAIN,
                     f"{coordinator.config_entry.entry_id}_{self.endpoint_id}_volume_{self.volume_name}",
                 )
             },
-            manufacturer=DEFAULT_NAME,
-            configuration_url=URL(
-                f"{coordinator.config_entry.data[CONF_URL]}#!/{self.endpoint_id}/docker/volumes/{self.volume_name}"
-            ),
-            model="Volume",
             name=self.volume_name,
-            via_device_id=dr.async_get_device_id_by_identifier(
+            parent_device_id=dr.async_get_device_id_by_identifier(
                 coordinator.hass,
                 (DOMAIN, f"{coordinator.config_entry.entry_id}_{self.endpoint_id}"),
                 config_entry_id=coordinator.config_entry.entry_id,

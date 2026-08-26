@@ -286,9 +286,12 @@ async def test_device_registry(
     """Test devices are correctly registered."""
     await setup_integration(hass, mock_config_entry)
 
-    device_entries = dr.async_entries_for_config_entry(
-        device_registry, mock_config_entry.entry_id
-    )
+    device_entries: list[dr.AnyDeviceEntry] = [
+        *dr.async_entries_for_config_entry(device_registry, mock_config_entry.entry_id),
+        *dr.async_child_entries_for_config_entry(
+            device_registry, mock_config_entry.entry_id
+        ),
+    ]
     # Sort by identifier to ensure consistent order in snapshot
     assert sorted(device_entries, key=lambda x: list(x.identifiers)[0][1]) == snapshot
 
@@ -307,18 +310,21 @@ async def test_container_stack_device_links(
     )
     assert endpoint_device is not None
 
-    dashy_stack_device = device_registry.async_get_device_by_identifier(
+    dashy_stack_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_stack_2"), mock_config_entry.entry_id
     )
     assert dashy_stack_device is not None
-    assert dashy_stack_device.via_device_id == endpoint_device.id
+    assert dashy_stack_device.parent_device_id == endpoint_device.id
 
-    webstack_device = device_registry.async_get_device_by_identifier(
+    webstack_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_stack_1"), mock_config_entry.entry_id
     )
     assert webstack_device is not None
-    assert webstack_device.via_device_id == endpoint_device.id
+    assert webstack_device.parent_device_id == endpoint_device.id
 
+    # Containers always resolve the endpoint as their via device, even when
+    # they belong to a stack: a stack is a child device, and a child device
+    # can neither be nested nor be a via device for another device.
     swarm_container_device = device_registry.async_get_device_by_identifier(
         (
             DOMAIN,
@@ -327,14 +333,14 @@ async def test_container_stack_device_links(
         mock_config_entry.entry_id,
     )
     assert swarm_container_device is not None
-    assert swarm_container_device.via_device_id == dashy_stack_device.id
+    assert swarm_container_device.via_device_id == endpoint_device.id
 
     compose_container_device = device_registry.async_get_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_serene_banach"),
         mock_config_entry.entry_id,
     )
     assert compose_container_device is not None
-    assert compose_container_device.via_device_id == webstack_device.id
+    assert compose_container_device.via_device_id == endpoint_device.id
 
     standalone_container_device = device_registry.async_get_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_focused_einstein"),
@@ -394,18 +400,18 @@ async def test_new_endpoint_callback(
 
     # The endpoint and its stacks are discovered together on this refresh, so
     # the stack device must resolve the freshly-created endpoint device as its
-    # via device instead of racing its creation.
+    # parent device instead of racing its creation.
     endpoint_device = device_registry.async_get_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1"), mock_config_entry.entry_id
     )
     assert endpoint_device is not None
 
-    stack_device = device_registry.async_get_device_by_identifier(
+    stack_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_stack_2"),
         mock_config_entry.entry_id,
     )
     assert stack_device is not None
-    assert stack_device.via_device_id == endpoint_device.id
+    assert stack_device.parent_device_id == endpoint_device.id
 
 
 async def test_removed_endpoint_stops_event_listener(
@@ -512,11 +518,10 @@ async def test_stack_recreated_with_new_id(
 ) -> None:
     """Test a stack recreated with the same name but a new ID re-registers its device.
 
-    The stack device identifier and a container's via device are keyed by the stack
-    ID, so a stack recreated with a new ID must be detected as new and its device
-    registered before a container in it resolves the stack as its via device. Tracking
-    only the name would skip registration and the via device lookup would then raise,
-    aborting the refresh.
+    The stack device identifier is keyed by the stack ID, so a stack recreated with
+    a new ID must be detected as new and its device (re-)registered as a child of the
+    endpoint device. Tracking only the name would skip registration and the parent
+    device lookup would then raise, aborting the refresh.
     """
     await setup_integration(hass, mock_config_entry)
 
@@ -525,7 +530,7 @@ async def test_stack_recreated_with_new_id(
     )
     assert endpoint_device is not None
     assert (
-        device_registry.async_get_device_by_identifier(
+        device_registry.async_get_child_device_by_identifier(
             (DOMAIN, f"{mock_config_entry.entry_id}_1_stack_1"),
             mock_config_entry.entry_id,
         )
@@ -563,16 +568,16 @@ async def test_stack_recreated_with_new_id(
 
     assert coordinator.last_update_success
 
-    new_stack_device = device_registry.async_get_device_by_identifier(
+    new_stack_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_stack_99"),
         mock_config_entry.entry_id,
     )
     assert new_stack_device is not None
-    assert new_stack_device.via_device_id == endpoint_device.id
+    assert new_stack_device.parent_device_id == endpoint_device.id
 
     new_container_device = device_registry.async_get_device_by_identifier(
         (DOMAIN, f"{mock_config_entry.entry_id}_1_brave_newton"),
         mock_config_entry.entry_id,
     )
     assert new_container_device is not None
-    assert new_container_device.via_device_id == new_stack_device.id
+    assert new_container_device.via_device_id == endpoint_device.id

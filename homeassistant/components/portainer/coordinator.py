@@ -444,8 +444,8 @@ class PortainerCoordinator(
         """Register endpoint and stack devices.
 
         Must run for an endpoint/stack before any entity that resolves it
-        as its via device is constructed, both during initial setup and
-        when a later refresh discovers new endpoints or stacks.
+        as its parent or via device is constructed, both during initial
+        setup and when a later refresh discovers new endpoints or stacks.
         """
         device_registry = dr.async_get(self.hass)
 
@@ -465,7 +465,7 @@ class PortainerCoordinator(
 
         for endpoint_id, stack_name, _stack_id in stack_keys:
             stack = mapped_endpoints[endpoint_id].stacks[stack_name].stack
-            device_registry.async_get_or_create(
+            device_registry.async_get_or_create_child(
                 config_entry_id=self.config_entry.entry_id,
                 identifiers={
                     (
@@ -473,13 +473,8 @@ class PortainerCoordinator(
                         f"{self.config_entry.entry_id}_{endpoint_id}_stack_{stack.id}",
                     )
                 },
-                configuration_url=URL(
-                    f"{self.config_entry.data[CONF_URL]}#!/{endpoint_id}/docker/stacks/{stack.name}"
-                ),
-                manufacturer=DEFAULT_NAME,
-                model="Stack",
                 name=stack.name,
-                via_device_id=dr.async_get_device_id_by_identifier(
+                parent_device_id=dr.async_get_device_id_by_identifier(
                     self.hass,
                     (DOMAIN, f"{self.config_entry.entry_id}_{endpoint_id}"),
                     config_entry_id=self.config_entry.entry_id,
